@@ -1,9 +1,4 @@
-workflows:
-  android-workflow:
-    name: Android Workflow
-    max_build_duration: 60
-    instance_type: mac_mini_m2
-    scripts:
+scripts:
       - name: Repair and Create Project
         script: |
           flutter create . --platforms android --project-name keuangan_ree
@@ -13,12 +8,7 @@ workflows:
           dart run flutter_launcher_icons
       - name: Change App Display Name
         script: |
-          sed -i 's/android:label=".*"/android:label="Keuangan Ree"/' android/app/src/main/AndroidManifest.xml
+          export APP_NAME="Keuangan Ree"
+          perl -pi -e 's/android:label=".*?"/android:label="'"$APP_NAME"'"/g' android/app/src/main/AndroidManifest.xml
       - name: Build APK
         script: flutter build apk --release
-    artifacts:
-      - build/app/outputs/flutter-apk/*.apk
-    publishing:
-      email:
-        recipients:
-          - mediabyren@gmail.com
