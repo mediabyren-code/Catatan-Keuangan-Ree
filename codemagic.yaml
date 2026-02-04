@@ -1,9 +1,19 @@
 workflows:
   android-workflow:
     name: Android Workflow
+    max_build_duration: 60
     instance_type: mac_mini_m2
     scripts:
-      - flutter pub get
-      - flutter build apk --release
+      - name: Repair and Create Android Files
+        script: |
+          flutter create . --platforms android
+      - name: Get packages
+        script: flutter pub get
+      - name: Build APK
+        script: flutter build apk --release
     artifacts:
       - build/app/outputs/flutter-apk/*.apk
+    publishing:
+      email:
+        recipients:
+          - mediabyren@gmail.com
