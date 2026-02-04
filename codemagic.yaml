@@ -1,23 +1,9 @@
 workflows:
   android-workflow:
     name: Android Workflow
-    max_build_duration: 60
     instance_type: mac_mini_m2
-    triggering:
-      events:
-        - push
     scripts:
-      - name: Get Flutter packages
-        script: | 
-          cd $(find . -name pubspec.yaml -exec dirname {} \;)
-          flutter pub get
-      - name: Build APK
-        script: |
-          cd $(find . -name pubspec.yaml -exec dirname {} \;)
-          flutter build apk --release
+      - flutter pub get
+      - flutter build apk --release
     artifacts:
-      - "**/build/app/outputs/flutter-apk/*.apk"
-    publishing:
-      email:
-        recipients:
-          - mediabyren@gmail.com
+      - build/app/outputs/flutter-apk/*.apk
