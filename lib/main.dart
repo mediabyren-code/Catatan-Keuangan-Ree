@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -47,7 +48,10 @@ class _MainNavigationState extends State<MainNavigation> {
       body: IndexedStack(
         index: _currentIndex,
         children: [
-          HomePage(transactions: _transactions, onAdd: (tx) => setState(() => _transactions.insert(0, tx))),
+          HomePage(
+            transactions: _transactions, 
+            onAdd: (tx) => setState(() => _transactions.insert(0, tx))
+          ),
           LaporanPage(transactions: _transactions),
         ],
       ),
@@ -73,46 +77,81 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  final _catCtrl = TextEditingController();
+  DateTime _selectedDate = DateTime.now();
+  String _filterType = "Harian";
+  final List<String> _categories = ["Makan", "Gaji", "Transport", "Hiburan", "Lainnya"];
+
+  // Form Controllers
+  String? _selectedCategory;
   final _noteCtrl = TextEditingController();
   final _amountCtrl = TextEditingController();
 
-  double get totalIn => widget.transactions.where((t) => t.isIncome).fold(0, (a, b) => a + b.amount);
-  double get totalOut => widget.transactions.where((t) => !t.isIncome).fold(0, (a, b) => a + b.amount);
+  List<Transaction> get filteredTransactions {
+    return widget.transactions.where((t) {
+      if (_filterType == "Harian") {
+        return t.date.day == _selectedDate.day && t.date.month == _selectedDate.month && t.date.year == _selectedDate.year;
+      } else if (_filterType == "Bulanan") {
+        return t.date.month == _selectedDate.month && t.date.year == _selectedDate.year;
+      } else if (_filterType == "Tahunan") {
+        return t.date.year == _selectedDate.year;
+      }
+      return true;
+    }).toList();
+  }
+
+  double get totalIn => filteredTransactions.where((t) => t.isIncome).fold(0, (a, b) => a + b.amount);
+  double get totalOut => filteredTransactions.where((t) => !t.isIncome).fold(0, (a, b) => a + b.amount);
+
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2101),
+    );
+    if (picked != null) setState(() => _selectedDate = picked);
+  }
 
   @override
   Widget build(BuildContext context) {
+    String headerText = "";
+    if (_filterType == "Harian") headerText = DateFormat('dd MMM yyyy').format(_selectedDate);
+    if (_filterType == "Bulanan" || _filterType == "Mingguan") headerText = DateFormat('MMMM yyyy').format(_selectedDate);
+    if (_filterType == "Tahunan") headerText = DateFormat('yyyy').format(_selectedDate);
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: const Color(0xFF1976D2),
-        leading: const Icon(Icons.chevron_left, color: Colors.white),
-        title: const Text("Feb 2026", style: TextStyle(color: Colors.white, fontSize: 16)),
-        actions: [
-          const Icon(Icons.file_download_outlined, color: Colors.white),
-          const SizedBox(width: 15),
-          const Icon(Icons.calendar_month_outlined, color: Colors.white),
-          const SizedBox(width: 15),
-          const Icon(Icons.tune, color: Colors.white),
-          const SizedBox(width: 10),
-        ],
-        bottom: const PreferredSize(
-          preferredSize: Size.fromHeight(50),
+        title: InkWell(
+          onTap: _pickDate,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.chevron_left, color: Colors.white),
+              const SizedBox(width: 8),
+              Text(headerText, style: const TextStyle(color: Colors.white, fontSize: 16)),
+              const SizedBox(width: 8),
+              const Icon(Icons.arrow_drop_down, color: Colors.white),
+            ],
+          ),
+        ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(50),
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
-              children: [
-                _TabHeader(title: "Harian", isActive: true),
-                _TabHeader(title: "Mingguan"),
-                _TabHeader(title: "Bulanan"),
-                _TabHeader(title: "Tahunan"),
-              ],
+              children: ["Harian", "Mingguan", "Bulanan", "Tahunan"].map((type) {
+                return GestureDetector(
+                  onTap: () => setState(() => _filterType = type),
+                  child: _TabHeader(title: type, isActive: _filterType == type),
+                );
+              }).toList(),
             ),
           ),
         ),
       ),
       body: Column(
         children: [
-          // Kartu Saldo (Mirip Screenshot Referensi)
           Container(
             padding: const EdgeInsets.all(20),
             margin: const EdgeInsets.all(16),
@@ -124,13 +163,7 @@ class _HomePageState extends State<HomePage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text("Saldo", style: TextStyle(color: Colors.grey)),
-                    Row(children: [Text("Buku Utama  ", style: TextStyle(fontSize: 12, color: Colors.grey)), Icon(Icons.visibility_outlined, size: 16)]),
-                  ],
-                ),
+                const Text("Saldo", style: TextStyle(color: Colors.grey)),
                 Text(NumberFormat.currency(locale: 'id', symbol: 'Rp ', decimalDigits: 0).format(totalIn - totalOut),
                     style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 15),
@@ -144,16 +177,12 @@ class _HomePageState extends State<HomePage> {
               ],
             ),
           ),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 20),
-            child: Align(alignment: Alignment.centerLeft, child: Text("Hari ini", style: TextStyle(color: Colors.grey, fontSize: 13))),
-          ),
           Expanded(
-            child: widget.transactions.isEmpty
-                ? const Center(child: Text("Belum ada transaksi"))
+            child: filteredTransactions.isEmpty
+                ? const Center(child: Text("Tidak ada data di periode ini"))
                 : ListView.builder(
-                    itemCount: widget.transactions.length,
-                    itemBuilder: (context, index) => _TransactionItem(tx: widget.transactions[index]),
+                    itemCount: filteredTransactions.length,
+                    itemBuilder: (context, index) => _TransactionItem(tx: filteredTransactions[index]),
                   ),
           ),
         ],
@@ -188,37 +217,91 @@ class _HomePageState extends State<HomePage> {
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (context) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom, left: 20, right: 20, top: 20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(controller: _catCtrl, decoration: const InputDecoration(labelText: "Kategori (Misal: Makan)")),
-            TextField(controller: _noteCtrl, decoration: const InputDecoration(labelText: "Catatan")),
-            TextField(controller: _amountCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: "Nominal")),
-            const SizedBox(height: 20),
-            Row(children: [
-              Expanded(child: ElevatedButton(onPressed: () => _save(true), child: const Text("Pemasukan"))),
-              const SizedBox(width: 10),
-              Expanded(child: ElevatedButton(onPressed: () => _save(false), child: const Text("Pengeluaran"))),
-            ]),
-            const SizedBox(height: 20),
-          ],
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) => Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom, left: 20, right: 20, top: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<String>(
+                value: _selectedCategory,
+                hint: const Text("Pilih Kategori"),
+                items: _categories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
+                onChanged: (v) => setModalState(() => _selectedCategory = v),
+                decoration: InputDecoration(
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.add_circle_outline),
+                    onPressed: () => _addNewCategory(context, setModalState),
+                  ),
+                ),
+              ),
+              TextField(controller: _noteCtrl, decoration: const InputDecoration(labelText: "Catatan (Keterangan)")),
+              TextField(
+                controller: _amountCtrl,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly, CurrencyInputFormatter()],
+                decoration: const InputDecoration(labelText: "Nominal", prefixText: "Rp "),
+              ),
+              const SizedBox(height: 20),
+              Row(children: [
+                Expanded(child: ElevatedButton(onPressed: () => _save(true), style: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade50), child: const Text("Pemasukan", style: TextStyle(color: Colors.green)))),
+                const SizedBox(width: 10),
+                Expanded(child: ElevatedButton(onPressed: () => _save(false), style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade50), child: const Text("Pengeluaran", style: TextStyle(color: Colors.red)))),
+              ]),
+              const SizedBox(height: 20),
+            ],
+          ),
         ),
       ),
     );
   }
 
+  void _addNewCategory(BuildContext context, StateSetter setModalState) {
+    final ctrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Tambah Kategori"),
+        content: TextField(controller: ctrl, decoration: const InputDecoration(hintText: "Nama Kategori Baru")),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Batal")),
+          ElevatedButton(onPressed: () {
+            if (ctrl.text.isNotEmpty) {
+              setState(() => _categories.add(ctrl.text));
+              setModalState(() => _selectedCategory = ctrl.text);
+            }
+            Navigator.pop(context);
+          }, child: const Text("Simpan")),
+        ],
+      ),
+    );
+  }
+
   void _save(bool isInc) {
+    if (_selectedCategory == null || _amountCtrl.text.isEmpty) return;
+    
+    final cleanAmount = _amountCtrl.text.replaceAll('.', '');
     widget.onAdd(Transaction(
-      category: _catCtrl.text,
+      category: _selectedCategory!,
       note: _noteCtrl.text,
-      amount: double.parse(_amountCtrl.text),
+      amount: double.parse(cleanAmount),
       isIncome: isInc,
-      date: DateTime.now(),
+      date: _selectedDate,
     ));
-    _catCtrl.clear(); _noteCtrl.clear(); _amountCtrl.clear();
+    _noteCtrl.clear(); _amountCtrl.clear(); _selectedCategory = null;
     Navigator.pop(context);
+  }
+}
+
+// --- FORMATTER MATA UANG SAAT KETIK ---
+class CurrencyInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+    if (newValue.selection.baseOffset == 0) return newValue;
+    double value = double.parse(newValue.text);
+    final formatter = NumberFormat.decimalPattern('id');
+    String newText = formatter.format(value);
+    return newValue.copyWith(text: newText, selection: TextSelection.collapsed(offset: newText.length));
   }
 }
 
@@ -228,31 +311,16 @@ class _TransactionItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      child: Row(
-        children: [
-          Column(
-            children: [
-              Container(width: 8, height: 8, decoration: const BoxDecoration(color: Color(0xFF1976D2), shape: BoxShape.circle)),
-              Container(width: 2, height: 40, color: Colors.blue.withOpacity(0.2)),
-            ],
-          ),
-          const SizedBox(width: 15),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(tx.category, style: const TextStyle(fontWeight: FontWeight.w600)),
-                Text(tx.note, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-              ],
-            ),
-          ),
-          Text(
-            "${tx.isIncome ? '+' : '-'}Rp ${NumberFormat('#,###', 'id').format(tx.amount)}",
-            style: TextStyle(color: tx.isIncome ? Colors.green : Colors.red, fontWeight: FontWeight.bold),
-          ),
-        ],
+    return ListTile(
+      leading: CircleAvatar(
+        backgroundColor: tx.isIncome ? Colors.green.shade50 : Colors.red.shade50,
+        child: Icon(tx.isIncome ? Icons.add : Icons.remove, color: tx.isIncome ? Colors.green : Colors.red),
+      ),
+      title: Text(tx.category, style: const TextStyle(fontWeight: FontWeight.bold)),
+      subtitle: Text("${DateFormat('dd/MM/yyyy').format(tx.date)} • ${tx.note}"),
+      trailing: Text(
+        "${tx.isIncome ? '+' : '-'} Rp ${NumberFormat('#,###', 'id').format(tx.amount)}",
+        style: TextStyle(color: tx.isIncome ? Colors.green : Colors.red, fontWeight: FontWeight.bold),
       ),
     );
   }
@@ -266,7 +334,7 @@ class _TabHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 10),
+      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
       decoration: BoxDecoration(
         color: isActive ? Colors.white : Colors.transparent,
@@ -289,7 +357,7 @@ class LaporanPage extends StatelessWidget {
         child: ElevatedButton.icon(
           onPressed: () => _printPdf(transactions),
           icon: const Icon(Icons.picture_as_pdf),
-          label: const Text("Ekspor ke PDF (Gratis)"),
+          label: const Text("Ekspor ke PDF (Format Rapih)"),
         ),
       ),
     );
@@ -297,11 +365,24 @@ class LaporanPage extends StatelessWidget {
 
   void _printPdf(List<Transaction> txs) async {
     final pdf = pw.Document();
-    pdf.addPage(pw.Page(build: (context) => pw.Column(children: [
-      pw.Text("Laporan Keuangan Ree", style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
-      pw.SizedBox(height: 20),
-      pw.TableHelper.fromTextArray(data: [['Tanggal', 'Kategori', 'Nominal'], ...txs.map((t) => [DateFormat('dd/MM').format(t.date), t.category, t.amount.toString()])]),
-    ])));
+    final idFormat = NumberFormat.currency(locale: 'id', symbol: 'Rp ', decimalDigits: 0);
+
+    pdf.addPage(pw.MultiPage(
+      build: (context) => [
+        pw.Header(level: 0, child: pw.Text("Laporan Keuangan Ree", style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold))),
+        pw.SizedBox(height: 20),
+        pw.TableHelper.fromTextArray(
+          headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+          headers: ['Tanggal', 'Kategori', 'Catatan', 'Nominal'],
+          data: txs.map((t) => [
+            DateFormat('dd MMMM yyyy').format(t.date),
+            t.category,
+            t.note,
+            idFormat.format(t.amount)
+          ]).toList(),
+        ),
+      ],
+    ));
     await Printing.layoutPdf(onLayout: (format) => pdf.save());
   }
 }
