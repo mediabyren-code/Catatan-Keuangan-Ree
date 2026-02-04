@@ -4,9 +4,12 @@ workflows:
     max_build_duration: 60
     instance_type: mac_mini_m2
     scripts:
-      - name: Repair and Create Android Files
+      - name: Repair and Create Project
         script: |
-          flutter create . --platforms android
+          flutter create . --platforms android --project-name keuangan_ree
+      - name: Change App Display Name
+        script: |
+          sed -i 's/android:label=".*"/android:label="Keuangan Ree"/' android/app/src/main/AndroidManifest.xml
       - name: Get packages
         script: flutter pub get
       - name: Build APK
