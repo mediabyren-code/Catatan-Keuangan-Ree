@@ -1,4 +1,3 @@
-[main.dart.txt](https://github.com/user-attachments/files/25078345/main.dart.txt)
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
@@ -306,7 +305,6 @@ class LaporanPage extends StatelessWidget {
     await Printing.layoutPdf(onLayout: (format) => pdf.save());
   }
 }
-[pubspec.yaml.txt](https://github.com/user-attachments/files/25078355/pubspec.yaml.txt)
 name: catatan_keuangan_ree
 description: Aplikasi catatan keuangan minimalis.
 publish_to: 'none'
