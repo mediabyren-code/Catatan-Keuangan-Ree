@@ -9,7 +9,6 @@ workflows:
     scripts:
       - name: Get Flutter packages
         script: | 
-          # Perintah ini akan mencari di mana pubspec.yaml berada dan pindah ke sana
           cd $(find . -name pubspec.yaml -exec dirname {} \;)
           flutter pub get
       - name: Build APK
