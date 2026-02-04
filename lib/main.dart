@@ -358,10 +358,10 @@ class LaporanPage extends StatelessWidget {
           child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
             pw.Text("RINGKASAN AKHIR", style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
             pw.Divider(),
-            pw.Row(main: pw.MainAxisAlignment.spaceBetween, children: [pw.Text("Total Pemasukan:"), pw.Text(idRupiah.format(tin))]),
-            pw.Row(main: pw.MainAxisAlignment.spaceBetween, children: [pw.Text("Total Pengeluaran:"), pw.Text(idRupiah.format(tout))]),
+            pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [pw.Text("Total Pemasukan:"), pw.Text(idRupiah.format(tin))]),
+            pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [pw.Text("Total Pengeluaran:"), pw.Text(idRupiah.format(tout))]),
             pw.Divider(),
-            pw.Row(main: pw.MainAxisAlignment.spaceBetween, children: [
+            pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
               pw.Text("SISA SALDO:", style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
               pw.Text(idRupiah.format(tin - tout), style: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: (tin-tout) >= 0 ? PdfColors.green : PdfColors.red)),
             ]),
