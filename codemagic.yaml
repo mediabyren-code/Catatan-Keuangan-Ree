@@ -7,11 +7,13 @@ workflows:
       - name: Repair and Create Project
         script: |
           flutter create . --platforms android --project-name keuangan_ree
+      - name: Generate App Icons
+        script: |
+          flutter pub get
+          dart run flutter_launcher_icons
       - name: Change App Display Name
         script: |
           sed -i 's/android:label=".*"/android:label="Keuangan Ree"/' android/app/src/main/AndroidManifest.xml
-      - name: Get packages
-        script: flutter pub get
       - name: Build APK
         script: flutter build apk --release
     artifacts:
