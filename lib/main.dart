@@ -53,6 +53,11 @@ class _MainNavigationState extends State<MainNavigation> {
             transactions: _transactions,
             categories: _userCategories,
             onAdd: (tx) => setState(() => _transactions.add(tx)),
+            onEdit: (oldTx, newTx) => setState(() {
+              int idx = _transactions.indexOf(oldTx);
+              if (idx != -1) _transactions[idx] = newTx;
+            }),
+            onDelete: (tx) => setState(() => _transactions.remove(tx)),
             onUpdateCategories: (newList) => setState(() => _userCategories = newList),
           ),
           LaporanPage(
@@ -77,18 +82,26 @@ class HomePage extends StatefulWidget {
   final List<Transaction> transactions;
   final List<String> categories;
   final Function(Transaction) onAdd;
+  final Function(Transaction, Transaction) onEdit;
+  final Function(Transaction) onDelete;
   final Function(List<String>) onUpdateCategories;
 
-  const HomePage({super.key, required this.transactions, required this.onAdd, required this.categories, required this.onUpdateCategories});
+  const HomePage({
+    super.key, 
+    required this.transactions, 
+    required this.onAdd, 
+    required this.onEdit,
+    required this.onDelete,
+    required this.categories, 
+    required this.onUpdateCategories
+  });
 
   @override
   State<HomePage> createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
-  DateTime _activeDate = DateTime.now();
-  
-  // Hitung total akumulatif (tidak peduli tanggal mana yang dipilih di UI)
+  // Hitung total akumulatif
   double get totalIn => widget.transactions.where((t) => t.isIncome).fold(0, (a, b) => a + b.amount);
   double get totalOut => widget.transactions.where((t) => !t.isIncome).fold(0, (a, b) => a + b.amount);
 
@@ -145,12 +158,20 @@ class _HomePageState extends State<HomePage> {
                     itemBuilder: (context, index) {
                       final tx = displayList[index];
                       return ListTile(
+                        onTap: () => _showForm(context, editTx: tx), // REVISI: Klik buat edit/hapus
                         contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 5),
                         title: Text(tx.note.isEmpty ? "Tanpa Keterangan" : tx.note, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                         subtitle: Text("${tx.category} • ${DateFormat('dd MMM').format(tx.date)}", style: const TextStyle(color: Colors.grey)),
-                        trailing: Text(
-                          "${tx.isIncome ? '+' : '-'} ${NumberFormat.currency(locale: 'id', symbol: 'Rp ', decimalDigits: 0).format(tx.amount)}",
-                          style: TextStyle(color: tx.isIncome ? Colors.green : Colors.red, fontWeight: FontWeight.bold),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              "${tx.isIncome ? '+' : '-'} ${NumberFormat.currency(locale: 'id', symbol: 'Rp ', decimalDigits: 0).format(tx.amount)}",
+                              style: TextStyle(color: tx.isIncome ? Colors.green : Colors.red, fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(width: 5),
+                            const Icon(Icons.chevron_right, size: 16, color: Colors.grey),
+                          ],
                         ),
                       );
                     },
@@ -178,11 +199,18 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  void _showForm(BuildContext context) {
-    String? selCat;
-    final noteCtrl = TextEditingController();
-    final amtCtrl = TextEditingController();
-    DateTime tempDate = DateTime.now();
+  // REVISI FORM: Mendukung Tambah Baru, Edit, dan Hapus
+  void _showForm(BuildContext context, {Transaction? editTx}) {
+    String? selCat = editTx?.category;
+    final noteCtrl = TextEditingController(text: editTx?.note ?? "");
+    
+    // Format mata uang untuk inisiasi nilai jika mode edit
+    String initAmount = "";
+    if (editTx != null) {
+      initAmount = NumberFormat.decimalPattern('id').format(editTx.amount.toInt());
+    }
+    final amtCtrl = TextEditingController(text: initAmount);
+    DateTime tempDate = editTx?.date ?? DateTime.now();
 
     showModalBottomSheet(
       context: context,
@@ -197,26 +225,45 @@ class _HomePageState extends State<HomePage> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text("Buat Catatan", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  TextButton.icon(
-                    onPressed: () async {
-                      final p = await showDatePicker(context: context, initialDate: tempDate, firstDate: DateTime(2020), lastDate: DateTime(2100));
-                      if (p != null) setMState(() => tempDate = p);
-                    },
-                    icon: const Icon(Icons.calendar_month, size: 18),
-                    label: Text(DateFormat('dd/MM/yy').format(tempDate)),
+                  Text(editTx == null ? "Buat Catatan" : "Ubah Catatan", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  Row(
+                    children: [
+                      if (editTx != null) // Tombol Hapus hanya muncul saat edit data
+                        IconButton(
+                          icon: const Icon(Icons.delete_forever, color: Colors.red),
+                          onPressed: () {
+                            widget.onDelete(editTx);
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Catatan berhasil dihapus")));
+                          },
+                        ),
+                      TextButton.icon(
+                        onPressed: () async {
+                          final p = await showDatePicker(context: context, initialDate: tempDate, firstDate: DateTime(2020), lastDate: DateTime(2100));
+                          if (p != null) setMState(() => tempDate = p);
+                        },
+                        icon: const Icon(Icons.calendar_month, size: 18),
+                        label: Text(DateFormat('dd/MM/yy').format(tempDate)),
+                      ),
+                    ],
                   )
                 ],
               ),
               const SizedBox(height: 15),
               DropdownButtonFormField<String>(
-                value: selCat,
+                value: widget.categories.contains(selCat) ? selCat : null,
                 hint: const Text("Pilih Kategori"),
                 items: widget.categories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
                 onChanged: (v) => setMState(() => selCat = v),
                 decoration: InputDecoration(
                   prefixIcon: const Icon(Icons.category_outlined),
-                  suffixIcon: IconButton(icon: const Icon(Icons.settings), onPressed: () => _manageCategories(context)),
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.settings), 
+                    onPressed: () => _manageCategories(context, () {
+                      // Callback ini dipanggil saat kategori berubah, memaksa form bottomsheet ikut update item dropdown-nya
+                      setMState(() {}); 
+                    }),
+                  ),
                 ),
               ),
               TextField(controller: noteCtrl, decoration: const InputDecoration(labelText: "Keterangan / Nama Barang", prefixIcon: Icon(Icons.edit_note))),
@@ -228,9 +275,9 @@ class _HomePageState extends State<HomePage> {
               ),
               const SizedBox(height: 25),
               Row(children: [
-                Expanded(child: ElevatedButton(onPressed: () => _doSave(true, selCat, noteCtrl, amtCtrl, tempDate), style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white), child: const Text("PEMASUKAN"))),
+                Expanded(child: ElevatedButton(onPressed: () => _doSave(true, selCat, noteCtrl, amtCtrl, tempDate, oldTx: editTx), style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white), child: Text(editTx == null ? "PEMASUKAN" : "SIMPAN PEMASUKAN"))),
                 const SizedBox(width: 12),
-                Expanded(child: ElevatedButton(onPressed: () => _doSave(false, selCat, noteCtrl, amtCtrl, tempDate), style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white), child: const Text("PENGELUARAN"))),
+                Expanded(child: ElevatedButton(onPressed: () => _doSave(false, selCat, noteCtrl, amtCtrl, tempDate, oldTx: editTx), style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white), child: Text(editTx == null ? "PENGELUARAN" : "SIMPAN PENGELUARAN"))),
               ]),
               const SizedBox(height: 30),
             ],
@@ -240,7 +287,8 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  void _manageCategories(BuildContext context) {
+  // FIX BUG KATEGORI: Menambahkan parameter onCategoriesChanged agar form utama langsung sinkron
+  void _manageCategories(BuildContext context, VoidCallback onCategoriesChanged) {
     showDialog(
       context: context,
       builder: (context) {
@@ -256,22 +304,36 @@ class _HomePageState extends State<HomePage> {
                   Row(children: [
                     Expanded(child: TextField(controller: ctrl, decoration: const InputDecoration(hintText: "Nama kategori baru"))),
                     IconButton(icon: const Icon(Icons.add, color: Colors.blue), onPressed: () {
-                      if (ctrl.text.isNotEmpty) {
-                        widget.onUpdateCategories([...widget.categories, ctrl.text]);
-                        ctrl.clear();
-                        setDState(() {});
+                      if (ctrl.text.trim().isNotEmpty) {
+                        String newCat = ctrl.text.trim();
+                        if (!widget.categories.contains(newCat)) {
+                          widget.onUpdateCategories([...widget.categories, newCat]);
+                          ctrl.clear();
+                          setDState(() {}); // Refresh list di dalam dialog
+                          onCategoriesChanged(); // FIX: Langsung refresh item di dropdown form
+                        } else {
+                          ctrl.clear();
+                        }
                       }
                     })
                   ]),
                   const SizedBox(height: 10),
-                  ...widget.categories.map((c) => ListTile(
-                    title: Text(c),
-                    trailing: IconButton(icon: const Icon(Icons.delete, color: Colors.red, size: 20), onPressed: () {
-                      final newList = List<String>.from(widget.categories)..remove(c);
-                      widget.onUpdateCategories(newList);
-                      setDState(() {});
-                    }),
-                  )),
+                  SizedBox(
+                    maxHeight: 200, // Supaya kalau kategori banyak bisa di-scroll dan gak luber
+                    child: ListView(
+                      shrinkWrap: true,
+                      children: widget.categories.map((c) => ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(c),
+                        trailing: IconButton(icon: const Icon(Icons.delete, color: Colors.red, size: 20), onPressed: () {
+                          final newList = List<String>.from(widget.categories)..remove(c);
+                          widget.onUpdateCategories(newList);
+                          setDState(() {}); // Refresh list di dalam dialog
+                          onCategoriesChanged(); // FIX: Langsung refresh item di dropdown form
+                        }),
+                      )).toList(),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -282,10 +344,18 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  void _doSave(bool isInc, String? cat, TextEditingController n, TextEditingController a, DateTime d) {
+  void _doSave(bool isInc, String? cat, TextEditingController n, TextEditingController a, DateTime d, {Transaction? oldTx}) {
     if (cat == null || a.text.isEmpty) return;
     final amount = double.parse(a.text.replaceAll('.', ''));
-    widget.onAdd(Transaction(category: cat, note: n.text, amount: amount, isIncome: isInc, date: d));
+    
+    final newTx = Transaction(category: cat, note: n.text, amount: amount, isIncome: isInc, date: d);
+
+    if (oldTx == null) {
+      widget.onAdd(newTx); // Mode Tambah Data
+    } else {
+      widget.onEdit(oldTx, newTx); // Mode Edit Data Lama
+    }
+    
     Navigator.pop(context);
   }
 }
