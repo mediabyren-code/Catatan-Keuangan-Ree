@@ -287,7 +287,6 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // FIX BUG KATEGORI: Menambahkan parameter onCategoriesChanged agar form utama langsung sinkron
   void _manageCategories(BuildContext context, VoidCallback onCategoriesChanged) {
     showDialog(
       context: context,
@@ -309,8 +308,8 @@ class _HomePageState extends State<HomePage> {
                         if (!widget.categories.contains(newCat)) {
                           widget.onUpdateCategories([...widget.categories, newCat]);
                           ctrl.clear();
-                          setDState(() {}); // Refresh list di dalam dialog
-                          onCategoriesChanged(); // FIX: Langsung refresh item di dropdown form
+                          setDState(() {}); 
+                          onCategoriesChanged(); 
                         } else {
                           ctrl.clear();
                         }
@@ -318,8 +317,8 @@ class _HomePageState extends State<HomePage> {
                     })
                   ]),
                   const SizedBox(height: 10),
-                  SizedBox(
-                    maxHeight: 200, // Supaya kalau kategori banyak bisa di-scroll dan gak luber
+                  Container(
+                    constraints: const BoxConstraints(maxHeight: 200),
                     child: ListView(
                       shrinkWrap: true,
                       children: widget.categories.map((c) => ListTile(
@@ -328,8 +327,8 @@ class _HomePageState extends State<HomePage> {
                         trailing: IconButton(icon: const Icon(Icons.delete, color: Colors.red, size: 20), onPressed: () {
                           final newList = List<String>.from(widget.categories)..remove(c);
                           widget.onUpdateCategories(newList);
-                          setDState(() {}); // Refresh list di dalam dialog
-                          onCategoriesChanged(); // FIX: Langsung refresh item di dropdown form
+                          setDState(() {}); 
+                          onCategoriesChanged(); 
                         }),
                       )).toList(),
                     ),
